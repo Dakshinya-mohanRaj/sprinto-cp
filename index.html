@@ -230,6 +230,9 @@
 
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
 
+    // Statuses that count as a completed print (edit as needed)
+    const PRINTED_STATUSES = ["PRINTING", "PICKED"];
+
     let records = {};
     let maxDay = 1;
 
@@ -246,6 +249,23 @@
       const year = 2000 + parseInt(m[1], 10);
       const dateKey = year + "-" + m[2] + "-" + m[3];
       return { dateKey: dateKey, slot: SLOT_BY_CODE[m[4]] };
+    }
+
+    function slotFromHour(hour) {
+      if (hour >= 6 && hour < 12) return "morning";
+      if (hour >= 12 && hour < 16) return "afternoon";
+      if (hour >= 16 && hour < 22) return "evening";
+      return null;
+    }
+
+    // Fallback for rows with a missing/invalid order_id: use created_at
+    function parseFallback(row) {
+      const d = row.created_at ? new Date(row.created_at) : null;
+      if (!d || isNaN(d)) return null;
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dateKey = d.getFullYear() + "-" + mm + "-" + dd;
+      return { dateKey: dateKey, slot: slotFromHour(d.getHours()) };
     }
 
     // Sheets for one order = sum of (pages, duplex -> ceil(pages/2)) * copies per file
@@ -273,12 +293,12 @@
     function buildRecords(rows) {
       const rec = {};
       rows.forEach((r) => {
-        const parsed = parseOrderId(r.order_id);
+        const parsed = parseOrderId(r.order_id) || parseFallback(r);
         if (!parsed) return;
         if (!rec[parsed.dateKey]) rec[parsed.dateKey] = emptyCounts();
         const day = rec[parsed.dateKey];
         day.upload[parsed.slot]++;
-        if (r.status === "PICKED") {
+        if (PRINTED_STATUSES.includes(r.status)) {
           day.print[parsed.slot]++;
           day.sheet[parsed.slot] += orderSheets(r);
         }
@@ -300,7 +320,7 @@
     async function fetchOrders() {
       const { data, error } = await supabase
         .from("orders")
-        .select("order_id,status,files");
+        .select("order_id,status,files,created_at");
 
       if (error) {
         console.error("Supabase error:", error);
