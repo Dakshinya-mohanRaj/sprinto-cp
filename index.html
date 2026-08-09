@@ -7,12 +7,12 @@
   <style>
     :root {
       --primary: #7C6FDB;
-      --primary-dark: #5A4FB0;
+      --primary-dark: #7066c1;
       --primary-light: #E9E6FB;
       --primary-faint: #F5F3FD;
       --border: #E4E1F7;
       --text: #3A3760;
-      --text-soft: #8A87B5;
+      --text-soft: #7671bd;
       --white: #ffffff;
       --danger: #E25C5C;
       --ok: #3FB98A;
@@ -132,7 +132,7 @@
       margin-bottom: 14px;
     }
     .search input {
-      flex: 1;
+      width: 100%;
       padding: 12px 14px;
       border: 1.5px solid var(--border);
       border-radius: 12px;
@@ -179,8 +179,7 @@
     </div>
 
     <div class="search">
-      <input id="search-input" type="text" placeholder="Search Day / Date (e.g. Day 2, 08/08/2026)" />
-      <button onclick="searchDay()">Go</button>
+      <input id="date-input" type="date" />
     </div>
 
     <div class="day-strip">
@@ -199,7 +198,7 @@
     </div>
 
     <div class="stat-row">
-      <div class="stat-card"><div class="value" id="month-sheets">0</div><div class="label">Month Sheets (running total)</div></div>
+      <div class="stat-card"><div class="value" id="month-sheets">0</div><div class="label" id="month-label">Month Sheets</div></div>
     </div>
 
     <div class="card">
@@ -245,7 +244,7 @@
     // ================= CONFIG =================
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
-    const START_DATE = "2026-08-07"; // Day 1 starts here
+    const START_DATE = "2026-08-10"; // Day 1 - official counting starts here (10/08/2026)
     const DAY_SWITCH_HOUR = 16;      // Orders placed at/after 4:00 PM belong to the NEXT day's table
     const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"]; // counts toward Printed & Sheets
     const PAID_STATUSES = ["PAID", "PRINTING", "PICKED", "COMPLETED"]; // payment done -> counts as uploaded
@@ -278,9 +277,9 @@
     function updateAutoDay() {
       if (!viewingAuto) return;
       const n = new Date();
-      let day = Math.max(1, dayNoForDate(formatDateKey(n)));
+      let day = dayNoForDate(formatDateKey(n));
       if (n.getHours() >= DAY_SWITCH_HOUR) day += 1; // after 4 PM, open the next day's table
-      currentDay = day;
+      currentDay = Math.max(1, day);
     }
 
     // ================= ORDER PARSING =================
@@ -411,13 +410,23 @@
       document.getElementById("day-label").textContent = "Day " + currentDay;
       document.getElementById("date-label").textContent =
         pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear();
+      document.getElementById("date-input").value = dateKey;
 
+      // Month Sheets = total of ALL days in the viewed calendar month.
+      // The total is always based on the month length: 30-day month -> 30 day total, 31-day month -> 31 day total.
+      const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+      const y = d.getFullYear(), m = d.getMonth();
+      const daysInMonth = new Date(y, m + 1, 0).getDate();
       let monthSheets = 0;
-      for (let i = 1; i <= currentDay; i++) {
-        const rd = records[dateKeyForDay(i)];
+      for (let day = 1; day <= daysInMonth; day++) {
+        const key = y + "-" + pad(m + 1) + "-" + pad(day);
+        if (key < START_DATE) continue; // only officially counted days (Day 1 = START_DATE)
+        const rd = records[key];
         if (rd) monthSheets += rd.sheet.morning + rd.sheet.afternoon + rd.sheet.evening;
       }
       document.getElementById("month-sheets").textContent = monthSheets;
+      document.getElementById("month-label").textContent =
+        monthNames[m] + " " + y + " total (" + daysInMonth + " days)";
 
       document.getElementById("prev").disabled = currentDay <= 1;
       document.getElementById("next").disabled = false;
@@ -430,37 +439,16 @@
       render();
     }
 
-    function searchDay() {
-      const q = document.getElementById("search-input").value.trim();
-      if (!q) return;
-      let dayNo = null;
-
-      let m = q.match(/^day\s*(\d+)$/i);
-      if (m) dayNo = parseInt(m[1], 10);
-      else if (/^\d+$/.test(q)) dayNo = parseInt(q, 10);
-
-      if (!dayNo) {
-        let dm = q.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
-        if (dm) {
-          const year = dm[3].length === 2 ? "20" + dm[3] : dm[3];
-          dayNo = dayNoForDate(year + "-" + pad(dm[2]) + "-" + pad(dm[1]));
-        } else {
-          dm = q.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-          if (dm) dayNo = dayNoForDate(dm[1] + "-" + pad(dm[2]) + "-" + pad(dm[3]));
-        }
-      }
-
-      if (!dayNo || dayNo < 1) {
-        alert("Not found. Try like: Day 2, 2, 08/08/2026");
-        return;
-      }
+    function pickDate(value) {
+      if (!value) return;
+      const dayNo = Math.max(1, dayNoForDate(value));
       viewingAuto = false;
       currentDay = dayNo;
       render();
     }
 
-    document.getElementById("search-input").addEventListener("keydown", (e) => {
-      if (e.key === "Enter") searchDay();
+    document.getElementById("date-input").addEventListener("change", (e) => {
+      pickDate(e.target.value);
     });
 
     // ================= INIT =================
