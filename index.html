@@ -231,16 +231,45 @@
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
 
     // Statuses that count as a completed print (edit as needed)
-    const PRINTED_STATUSES = ["PRINTING", "PICKED"];
+    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"];
 
     let records = {};
     let maxDay = 1;
+    let viewingAuto = true;
 
-    // AUTO DAY SWITCH: before 4 PM -> current day, at/after 4 PM -> next day
-    const now = new Date();
-    const baseDayNo = Math.max(1, Math.floor((now - new Date(START_DATE + "T00:00:00")) / 86400000) + 1);
-    const autoNext = now.getHours() >= DAY_SWITCH_HOUR ? 1 : 0;
-    let currentDay = baseDayNo + autoNext;
+    function formatDateKey(d) {
+      const dd = String(d.getDate()).padStart(2, "0");
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      return d.getFullYear() + "-" + mm + "-" + dd;
+    }
+
+    function parseDateKey(dateKey) {
+      const [y, m, d] = dateKey.split("-").map(Number);
+      return new Date(y, m - 1, d);
+    }
+
+    function dateKeyForDay(dayNo) {
+      const start = parseDateKey(START_DATE);
+      return formatDateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + (dayNo - 1)));
+    }
+
+    function dayNoForDate(dateStr) {
+      const start = parseDateKey(START_DATE);
+      const d = parseDateKey(dateStr);
+      return Math.floor((d - start) / 86400000) + 1;
+    }
+
+    function updateAutoDay() {
+      const n = new Date();
+      const todayKey = formatDateKey(n);
+      const baseDayNo = Math.max(1, dayNoForDate(todayKey));
+      const autoNext = n.getHours() >= DAY_SWITCH_HOUR ? 1 : 0;
+      const autoDay = baseDayNo + autoNext;
+      if (viewingAuto) currentDay = autoDay;
+      return autoDay;
+    }
+
+    let currentDay = updateAutoDay();
 
     // Parse order_id "YYMMDD-{M|A|E}-{BLOCK}-{SEQ}" -> { dateKey, slot }
     function parseOrderId(orderId) {
@@ -306,17 +335,6 @@
       return rec;
     }
 
-    function dateKeyForDay(dayNo) {
-      const start = new Date(START_DATE + "T00:00:00");
-      return new Date(start.getTime() + (dayNo - 1) * 86400000).toISOString().split("T")[0];
-    }
-
-    function dayNoForDate(dateStr) {
-      const start = new Date(START_DATE + "T00:00:00");
-      const d = new Date(dateStr + "T00:00:00");
-      return Math.floor((d - start) / 86400000) + 1;
-    }
-
     async function fetchOrders() {
       const { data, error } = await supabase
         .from("orders")
@@ -333,6 +351,8 @@
         records = buildRecords(data);
       }
       maxDay = Math.max(1, ...Object.keys(records).map(dayNoForDate));
+      updateAutoDay();
+      if (viewingAuto && currentDay > maxDay) currentDay = maxDay;
       render();
     }
 
@@ -368,6 +388,7 @@
     }
 
     function navDay(dir) {
+      viewingAuto = false;
       currentDay += dir;
       render();
     }
@@ -404,6 +425,7 @@
       }
 
       currentDay = dayNo;
+      viewingAuto = false;
       render();
     }
 
