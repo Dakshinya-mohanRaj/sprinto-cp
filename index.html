@@ -247,7 +247,6 @@
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
     const START_DATE = "2026-08-07"; // Day 1 starts here
-    const DAY_SWITCH_HOUR = 16;      // 4 PM -> open next day
     const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"];
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
     const POLL_MS = 10000;
@@ -257,7 +256,6 @@
     try { supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { supabase = null; }
 
     let records = {};   // dateKey -> counts
-    let maxDay = 1;
     let currentDay = 1;
     let viewingAuto = true;
 
@@ -278,9 +276,7 @@
     function updateAutoDay() {
       if (!viewingAuto) return;
       const n = new Date();
-      const base = Math.max(1, dayNoForDate(formatDateKey(n)));
-      const next = n.getHours() >= DAY_SWITCH_HOUR ? 1 : 0;
-      currentDay = base + next;
+      currentDay = Math.max(1, dayNoForDate(formatDateKey(n)));
     }
 
     // ================= ORDER PARSING =================
@@ -351,9 +347,6 @@
           .select("order_id,status,files,created_at");
         if (error) throw error;
         records = buildRecords(data || []);
-        maxDay = Math.max(1, ...Object.keys(records).map(dayNoForDate));
-        updateAutoDay();
-        if (viewingAuto && currentDay > maxDay) currentDay = maxDay;
         const t = new Date();
         document.getElementById("updated-time").textContent =
           pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds());
@@ -395,13 +388,13 @@
       document.getElementById("month-sheets").textContent = monthSheets;
 
       document.getElementById("prev").disabled = currentDay <= 1;
-      document.getElementById("next").disabled = currentDay >= maxDay;
+      document.getElementById("next").disabled = false;
     }
 
     // ================= ACTIONS =================
     function navDay(dir) {
       viewingAuto = false;
-      currentDay = Math.min(maxDay, Math.max(1, currentDay + dir));
+      currentDay = Math.max(1, currentDay + dir);
       render();
     }
 
