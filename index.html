@@ -131,9 +131,13 @@
       gap: 8px;
       margin-bottom: 14px;
     }
-    .search input {
+    .date-picker {
+      position: relative;
       width: 100%;
-      padding: 12px 14px;
+    }
+    .date-picker input {
+      width: 100%;
+      padding: 12px 44px 12px 14px;
       border: 1.5px solid var(--border);
       border-radius: 12px;
       font-size: 14px;
@@ -141,7 +145,24 @@
       background: var(--white);
       outline: none;
     }
-    .search input:focus { border-color: var(--primary); }
+    .date-picker input:focus { border-color: var(--primary); }
+    .date-picker input::-webkit-calendar-picker-indicator {
+      opacity: 0;
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      cursor: pointer;
+    }
+    .date-picker .cal-icon {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      pointer-events: none;
+      color: var(--primary-dark);
+      display: flex;
+    }
     .search button {
       padding: 0 18px;
       background: var(--primary);
@@ -179,7 +200,12 @@
     </div>
 
     <div class="search">
-      <input id="date-input" type="date" />
+      <div class="date-picker">
+        <input id="date-input" type="date" />
+        <span class="cal-icon" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"></rect><path d="M16 2v4M8 2v4M3 10h18"></path></svg>
+        </span>
+      </div>
     </div>
 
     <div class="day-strip">
