@@ -3,312 +3,317 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sprinto - Print Upload Counts</title>
+  <title>Sprinto - Print Dashboard</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #ffffff;
-      margin: 0;
-      padding: 16px;
+    :root {
+      --primary: #7C6FDB;
+      --primary-dark: #5A4FB0;
+      --primary-light: #E9E6FB;
+      --primary-faint: #F5F3FD;
+      --border: #E4E1F7;
+      --text: #3A3760;
+      --text-soft: #8A87B5;
+      --white: #ffffff;
+      --danger: #E25C5C;
+      --ok: #3FB98A;
     }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background: var(--primary-faint);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 16px;
+      padding-bottom: 40px;
+    }
+    .app { max-width: 480px; margin: 0 auto; }
+
     .header {
+      background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+      border-radius: 16px;
+      padding: 20px 16px 24px;
       text-align: center;
-      padding: 16px 0;
-      background: linear-gradient(135deg, #E9E6FB, #DCD7F7);
-      border-radius: 12px;
-      margin-bottom: 16px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      color: #fff;
+      margin-bottom: 14px;
+      box-shadow: 0 6px 18px rgba(124, 111, 219, 0.35);
     }
     .header img {
-      width: 48px;
-      height: 48px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       object-fit: cover;
-      display: block;
-      margin: 0 auto 8px;
-    }
-    .header h1 {
-      margin: 0;
-      color: #7C6FDB;
-      font-size: 24px;
-      letter-spacing: 1px;
-    }
-    .search-bar {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 16px;
-    }
-    .search-bar input {
-      flex: 1;
-      padding: 12px;
-      border: 1px solid #D6D2F7;
-      border-radius: 10px;
-      font-size: 14px;
-      color: #5A4FB0;
       background: #fff;
-      outline: none;
+      padding: 3px;
+      margin-bottom: 8px;
     }
-    .search-bar input::placeholder {
-      color: #A8A1E0;
+    .header h1 { font-size: 22px; letter-spacing: 2px; }
+    .header .sub { font-size: 12px; opacity: 0.85; margin-top: 2px; }
+
+    .day-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--white);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(60, 40, 120, 0.08);
+      margin-bottom: 14px;
     }
-    .search-bar button {
-      padding: 12px 16px;
-      background: #7C6FDB;
-      color: #fff;
+    .day-strip button {
+      background: var(--primary-light);
       border: none;
-      border-radius: 10px;
-      font-size: 14px;
+      width: 40px;
+      height: 40px;
+      border-radius: 12px;
+      font-size: 18px;
+      color: var(--primary-dark);
       cursor: pointer;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      border-radius: 12px;
-      overflow: hidden;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-      font-size: 14px;
-    }
-    th, td {
-      border: 1px solid #DCD7F5;
-      padding: 18px 10px;
+    .day-strip button:disabled { opacity: 0.3; cursor: default; }
+    .day-strip .day-info { text-align: center; }
+    .day-strip .day-info .day { font-size: 16px; font-weight: 700; }
+    .day-strip .day-info .date { font-size: 12px; color: var(--text-soft); margin-top: 2px; }
+
+    .stat-row { display: flex; gap: 10px; margin-bottom: 14px; }
+    .stat-card {
+      flex: 1;
+      background: var(--white);
+      border-radius: 14px;
+      padding: 14px 8px;
       text-align: center;
+      box-shadow: 0 2px 8px rgba(60, 40, 120, 0.08);
     }
-    th {
-      background: #D6D2F7;
-      color: #5A4FB0;
+    .stat-card .value { font-size: 26px; font-weight: 600; color: var(--primary); }
+    .stat-card .label { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
+
+    .card {
+      background: var(--white);
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 2px 8px rgba(60, 40, 120, 0.08);
+      margin-bottom: 14px;
+    }
+    .card .card-title {
       font-size: 13px;
+      font-weight: 700;
+      color: var(--primary-dark);
+      padding: 2px 4px 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
-    th:first-child {
-      background: #C4BEF2;
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 14px 6px; text-align: center; }
+    th {
+      background: var(--primary-light);
+      color: var(--primary-dark);
+      font-size: 12px;
+      border-radius: 8px;
+    }
+    th:first-child { background: transparent; }
+    td {
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text);
+      font-weight: 500;
     }
     td:first-child {
-      background: #F1EFFB;
-      font-weight: bold;
       text-align: left;
       font-size: 12px;
-      width: 34%;
-      color: #5A4FB0;
+      color: var(--text-soft);
+      font-weight: 600;
     }
-    td .count {
-      display: block;
-      font-size: 26px;
-      font-weight: 400;
-      color: #7C6FDB;
-      margin: 4px 0;
-    }
-    .row-label {
-      font-size: 11px;
-      line-height: 1.3;
-    }
-    .summary {
+    td .count { font-size: 20px; font-weight: 600; color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+
+    .search {
       display: flex;
-      gap: 12px;
-      margin-top: 16px;
+      gap: 8px;
+      margin-bottom: 14px;
     }
-    .summary .box {
+    .search input {
       flex: 1;
-      background: #fff;
-      border: 1px solid #DCD7F5;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
       border-radius: 12px;
-      text-align: center;
-      padding: 18px 8px;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      font-size: 14px;
+      color: var(--text);
+      background: var(--white);
+      outline: none;
     }
-    .summary .box .label {
-      font-size: 12px;
-      color: #5A4FB0;
-      font-weight: bold;
-    }
-    .summary .box .value {
-      font-size: 26px;
-      font-weight: 400;
-      color: #7C6FDB;
-      margin-top: 6px;
-    }
-    .nav {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 24px;
-      margin-top: 16px;
-    }
-    .nav button {
-      background: #D6D2F7;
+    .search input:focus { border-color: var(--primary); }
+    .search button {
+      padding: 0 18px;
+      background: var(--primary);
+      color: #fff;
       border: none;
-      border-radius: 50%;
-      width: 32px;
-      height: 32px;
+      border-radius: 12px;
       font-size: 14px;
-      color: #5A4FB0;
+      font-weight: 600;
       cursor: pointer;
-      line-height: 1;
     }
-    .nav button:disabled {
-      opacity: 0.3;
-      cursor: default;
+
+    .footer-note {
+      text-align: center;
+      font-size: 11px;
+      color: var(--text-soft);
+      margin-top: 18px;
     }
-    .nav .day-label {
-      color: #5A4FB0;
-      font-size: 14px;
-      font-weight: bold;
+    .footer-note .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--ok);
+      margin-right: 6px;
+      vertical-align: middle;
     }
   </style>
 </head>
 <body>
-  <div class="header">
-    <img src="logo.png" alt="Sprinto" />
-    <h1>SPRINTO</h1>
-  </div>
-
-  <div class="search-bar">
-    <input id="search-input" type="text" placeholder="Search by day or date (e.g. Day 2 or 08/08/2026)" />
-    <button onclick="searchDay()">Search</button>
-  </div>
-
-  <table>
-    <thead>
-      <tr>
-        <th id="today">Day 1 - 07/08/2026</th>
-        <th>Morning</th>
-        <th>Afternoon</th>
-        <th>Evening</th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="row-label">Uploaded Documents</td>
-        <td><span class="count" id="upload-morning">0</span></td>
-        <td><span class="count" id="upload-afternoon">0</span></td>
-        <td><span class="count" id="upload-evening">0</span></td>
-      </tr>
-      <tr>
-        <td class="row-label">Prints Completed</td>
-        <td><span class="count" id="print-morning">0</span></td>
-        <td><span class="count" id="print-afternoon">0</span></td>
-        <td><span class="count" id="print-evening">0</span></td>
-      </tr>
-      <tr>
-        <td class="row-label">Total Sheets Printed</td>
-        <td><span class="count" id="sheet-morning">0</span></td>
-        <td><span class="count" id="sheet-afternoon">0</span></td>
-        <td><span class="count" id="sheet-evening">0</span></td>
-      </tr>
-    </tbody>
-  </table>
-
-  <div class="summary">
-    <div class="box">
-      <div class="label">Day Sheet Count</div>
-      <div class="value" id="day-sheet">0</div>
+  <div class="app">
+    <div class="header">
+      <img src="logo.png" alt="Sprinto" />
+      <h1>SPRINTO</h1>
+      <div class="sub">Print Production Dashboard</div>
     </div>
-    <div class="box">
-      <div class="label">Month Sheet Count (running total)</div>
-      <div class="value" id="month-sheet">0</div>
-    </div>
-  </div>
 
-  <div class="nav">
-    <button id="prev" onclick="navDay(-1)" aria-label="Previous day">&#9664;</button>
-    <span class="day-label" id="day-label">Day 1</span>
-    <button id="next" onclick="navDay(1)" aria-label="Next day">&#9654;</button>
+    <div class="search">
+      <input id="search-input" type="text" placeholder="Search Day / Date (e.g. Day 2, 08/08/2026)" />
+      <button onclick="searchDay()">Go</button>
+    </div>
+
+    <div class="day-strip">
+      <button id="prev" onclick="navDay(-1)" aria-label="Previous day">&#9664;</button>
+      <div class="day-info">
+        <div class="day" id="day-label">Day 1</div>
+        <div class="date" id="date-label">07/08/2026</div>
+      </div>
+      <button id="next" onclick="navDay(1)" aria-label="Next day">&#9654;</button>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="value" id="stat-uploads">0</div><div class="label">Uploads</div></div>
+      <div class="stat-card"><div class="value" id="stat-printed">0</div><div class="label">Printed</div></div>
+      <div class="stat-card"><div class="value" id="stat-sheets">0</div><div class="label">Sheets</div></div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="value" id="month-sheets">0</div><div class="label">Month Sheets (running total)</div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Daily Breakdown</div>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Morning</th>
+            <th>Afternoon</th>
+            <th>Evening</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Uploaded</td>
+            <td><span class="count" id="upload-morning">0</span></td>
+            <td><span class="count" id="upload-afternoon">0</span></td>
+            <td><span class="count" id="upload-evening">0</span></td>
+          </tr>
+          <tr>
+            <td>Printed</td>
+            <td><span class="count" id="print-morning">0</span></td>
+            <td><span class="count" id="print-afternoon">0</span></td>
+            <td><span class="count" id="print-evening">0</span></td>
+          </tr>
+          <tr>
+            <td>Sheets</td>
+            <td><span class="count" id="sheet-morning">0</span></td>
+            <td><span class="count" id="sheet-afternoon">0</span></td>
+            <td><span class="count" id="sheet-evening">0</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="footer-note">
+      <span class="dot"></span>Live &middot; updated <span id="updated-time">--:--:--</span>
+    </div>
   </div>
 
   <script>
-    // ===== Supabase connection (from .env) =====
+    // ================= CONFIG =================
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
-
-    const supabase = (typeof createClient === "function")
-      ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
-      : null;
-
-    // Project start date - Day 1 is this date
-    const START_DATE = "2026-08-07";
-
-    // AUTO DAY SWITCH: next day starts at 4:00 PM
-    const DAY_SWITCH_HOUR = 16;
-
-    const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
-
-    // Statuses that count as a completed print (edit as needed)
+    const START_DATE = "2026-08-07"; // Day 1 starts here
+    const DAY_SWITCH_HOUR = 16;      // 4 PM -> open next day
     const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"];
+    const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
+    const POLL_MS = 10000;
 
-    let records = {};
+    // ================= STATE =================
+    let supabase = null;
+    try { supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { supabase = null; }
+
+    let records = {};   // dateKey -> counts
     let maxDay = 1;
+    let currentDay = 1;
     let viewingAuto = true;
 
-    function formatDateKey(d) {
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      return d.getFullYear() + "-" + mm + "-" + dd;
-    }
-
-    function parseDateKey(dateKey) {
-      const [y, m, d] = dateKey.split("-").map(Number);
-      return new Date(y, m - 1, d);
-    }
-
+    // ================= DATE HELPERS =================
+    function pad(n) { return String(n).padStart(2, "0"); }
+    function formatDateKey(d) { return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()); }
+    function parseDateKey(key) { const [y, m, d] = key.split("-").map(Number); return new Date(y, m - 1, d); }
     function dateKeyForDay(dayNo) {
-      const start = parseDateKey(START_DATE);
-      return formatDateKey(new Date(start.getFullYear(), start.getMonth(), start.getDate() + (dayNo - 1)));
+      const s = parseDateKey(START_DATE);
+      return formatDateKey(new Date(s.getFullYear(), s.getMonth(), s.getDate() + (dayNo - 1)));
     }
-
-    function dayNoForDate(dateStr) {
-      const start = parseDateKey(START_DATE);
-      const d = parseDateKey(dateStr);
-      return Math.floor((d - start) / 86400000) + 1;
+    function dayNoForDate(key) {
+      const s = parseDateKey(START_DATE);
+      const d = parseDateKey(key);
+      return Math.floor((d - s) / 86400000) + 1;
     }
 
     function updateAutoDay() {
+      if (!viewingAuto) return;
       const n = new Date();
-      const todayKey = formatDateKey(n);
-      const baseDayNo = Math.max(1, dayNoForDate(todayKey));
-      const autoNext = n.getHours() >= DAY_SWITCH_HOUR ? 1 : 0;
-      const autoDay = baseDayNo + autoNext;
-      if (viewingAuto) currentDay = autoDay;
-      return autoDay;
+      const base = Math.max(1, dayNoForDate(formatDateKey(n)));
+      const next = n.getHours() >= DAY_SWITCH_HOUR ? 1 : 0;
+      currentDay = base + next;
     }
 
-    let currentDay = 1;
-    updateAutoDay();
-
-    // Parse order_id "YYMMDD-{M|A|E}-{BLOCK}-{SEQ}" -> { dateKey, slot }
+    // ================= ORDER PARSING =================
+    // order_id "YYMMDD-{M|A|E}-{BLOCK}-{SEQ}" -> { dateKey, slot }
     function parseOrderId(orderId) {
       const m = String(orderId || "").match(/^(\d{2})(\d{2})(\d{2})-([MAE])(?:-(.*))?$/);
       if (!m) return null;
-      const year = 2000 + parseInt(m[1], 10);
-      const dateKey = year + "-" + m[2] + "-" + m[3];
-      return { dateKey: dateKey, slot: SLOT_BY_CODE[m[4]] };
+      return {
+        dateKey: (2000 + parseInt(m[1], 10)) + "-" + m[2] + "-" + m[3],
+        slot: SLOT_BY_CODE[m[4]]
+      };
     }
-
-    function slotFromHour(hour) {
-      if (hour >= 6 && hour < 12) return "morning";
-      if (hour >= 12 && hour < 16) return "afternoon";
-      if (hour >= 16 && hour < 22) return "evening";
+    function slotFromHour(h) {
+      if (h >= 6 && h < 12) return "morning";
+      if (h >= 12 && h < 16) return "afternoon";
+      if (h >= 16 && h < 22) return "evening";
       return null;
     }
-
-    // Fallback for rows with a missing/invalid order_id: use created_at
+    // Fallback for rows missing a valid order_id
     function parseFallback(row) {
       const d = row.created_at ? new Date(row.created_at) : null;
       if (!d || isNaN(d)) return null;
-      const dd = String(d.getDate()).padStart(2, "0");
-      const mm = String(d.getMonth() + 1).padStart(2, "0");
-      const dateKey = d.getFullYear() + "-" + mm + "-" + dd;
-      return { dateKey: dateKey, slot: slotFromHour(d.getHours()) };
+      return { dateKey: formatDateKey(d), slot: slotFromHour(d.getHours()) };
     }
 
-    // Sheets for one order = sum of (pages, duplex -> ceil(pages/2)) * copies per file
+    // Sheets per order = sum of (pages, duplex => ceil(pages/2)) * copies
     function orderSheets(order) {
       let total = 0;
       (order.files || []).forEach((f) => {
         const pages = Number(f.pages) || 0;
         const copies = Number(f.copies) || 1;
         const duplex = !!(f.printSettings && f.printSettings.duplex);
-        const sheetsPerCopy = duplex ? Math.ceil(pages / 2) : pages;
-        total += sheetsPerCopy * copies;
+        total += (duplex ? Math.ceil(pages / 2) : pages) * copies;
       });
       return total;
     }
@@ -321,50 +326,44 @@
       };
     }
 
-    // Build per-day counts from orders rows
     function buildRecords(rows) {
       const rec = {};
       rows.forEach((r) => {
-        const parsed = parseOrderId(r.order_id) || parseFallback(r);
-        if (!parsed) return;
-        if (!rec[parsed.dateKey]) rec[parsed.dateKey] = emptyCounts();
-        const day = rec[parsed.dateKey];
-        day.upload[parsed.slot]++;
+        const p = parseOrderId(r.order_id) || parseFallback(r);
+        if (!p || !p.slot) return;
+        if (!rec[p.dateKey]) rec[p.dateKey] = emptyCounts();
+        const day = rec[p.dateKey];
+        day.upload[p.slot]++;
         if (PRINTED_STATUSES.includes(r.status)) {
-          day.print[parsed.slot]++;
-          day.sheet[parsed.slot] += orderSheets(r);
+          day.print[p.slot]++;
+          day.sheet[p.slot] += orderSheets(r);
         }
       });
       return rec;
     }
 
+    // ================= DATA FETCH =================
     async function fetchOrders() {
-      if (!supabase) {
-        console.error("Supabase client failed to load (check the CDN script / internet).");
+      if (!supabase) { render(); return; }
+      try {
+        const { data, error } = await supabase
+          .from("orders")
+          .select("order_id,status,files,created_at");
+        if (error) throw error;
+        records = buildRecords(data || []);
+        maxDay = Math.max(1, ...Object.keys(records).map(dayNoForDate));
         updateAutoDay();
-        render();
-        return;
+        if (viewingAuto && currentDay > maxDay) currentDay = maxDay;
+        const t = new Date();
+        document.getElementById("updated-time").textContent =
+          pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds());
+      } catch (err) {
+        console.error("Supabase error:", err);
       }
-      const { data, error } = await supabase
-        .from("orders")
-        .select("order_id,status,files,created_at");
-
-      if (error) {
-        console.error("Supabase error:", error);
-        return;
-      }
-
-      if (!data || data.length === 0) {
-        records = {};
-      } else {
-        records = buildRecords(data);
-      }
-      maxDay = Math.max(1, ...Object.keys(records).map(dayNoForDate));
-      updateAutoDay();
-      if (viewingAuto && currentDay > maxDay) currentDay = maxDay;
       render();
     }
 
+    // ================= RENDER =================
     function render() {
       const dateKey = dateKeyForDay(currentDay);
       const rec = records[dateKey] || emptyCounts();
@@ -375,56 +374,54 @@
         }
       }
 
-      const date = new Date(dateKey + "T00:00:00");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      document.getElementById("today").textContent = "Day " + currentDay + " - " + dd + "/" + mm + "/" + date.getFullYear();
+      const dayUploads = rec.upload.morning + rec.upload.afternoon + rec.upload.evening;
+      const dayPrinted = rec.print.morning + rec.print.afternoon + rec.print.evening;
+      const daySheets = rec.sheet.morning + rec.sheet.afternoon + rec.sheet.evening;
+
+      document.getElementById("stat-uploads").textContent = dayUploads;
+      document.getElementById("stat-printed").textContent = dayPrinted;
+      document.getElementById("stat-sheets").textContent = daySheets;
+
+      const d = parseDateKey(dateKey);
       document.getElementById("day-label").textContent = "Day " + currentDay;
+      document.getElementById("date-label").textContent =
+        pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear();
 
-      const daySheet = rec.sheet.morning + rec.sheet.afternoon + rec.sheet.evening;
-      document.getElementById("day-sheet").textContent = daySheet;
-
-      // Month Sheet Count = running total of all sheets from Day 1 to the current day
-      let monthSheet = 0;
-      for (let d = 1; d <= currentDay; d++) {
-        const rd = records[dateKeyForDay(d)];
-        if (rd) monthSheet += rd.sheet.morning + rd.sheet.afternoon + rd.sheet.evening;
+      let monthSheets = 0;
+      for (let i = 1; i <= currentDay; i++) {
+        const rd = records[dateKeyForDay(i)];
+        if (rd) monthSheets += rd.sheet.morning + rd.sheet.afternoon + rd.sheet.evening;
       }
-      document.getElementById("month-sheet").textContent = monthSheet;
+      document.getElementById("month-sheets").textContent = monthSheets;
 
       document.getElementById("prev").disabled = currentDay <= 1;
       document.getElementById("next").disabled = currentDay >= maxDay;
     }
 
+    // ================= ACTIONS =================
     function navDay(dir) {
       viewingAuto = false;
-      currentDay += dir;
+      currentDay = Math.min(maxDay, Math.max(1, currentDay + dir));
       render();
     }
 
     function searchDay() {
-      const query = document.getElementById("search-input").value.trim();
-      if (!query) return;
+      const q = document.getElementById("search-input").value.trim();
+      if (!q) return;
+      let dayNo = null;
 
-      // Match "Day N" or plain number
-      let m = query.match(/^day\s*(\d+)$/i);
-      let dayNo = m ? parseInt(m[1], 10) : null;
+      let m = q.match(/^day\s*(\d+)$/i);
+      if (m) dayNo = parseInt(m[1], 10);
+      else if (/^\d+$/.test(q)) dayNo = parseInt(q, 10);
 
-      if (!dayNo && /^\d+$/.test(query)) {
-        dayNo = parseInt(query, 10);
-      }
-
-      // Match dates: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD
       if (!dayNo) {
-        let dm = query.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+        let dm = q.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
         if (dm) {
           const year = dm[3].length === 2 ? "20" + dm[3] : dm[3];
-          dayNo = dayNoForDate(year + "-" + String(dm[2]).padStart(2, "0") + "-" + String(dm[1]).padStart(2, "0"));
+          dayNo = dayNoForDate(year + "-" + pad(dm[2]) + "-" + pad(dm[1]));
         } else {
-          dm = query.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-          if (dm) {
-            dayNo = dayNoForDate(dm[1] + "-" + String(dm[2]).padStart(2, "0") + "-" + String(dm[3]).padStart(2, "0"));
-          }
+          dm = q.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+          if (dm) dayNo = dayNoForDate(dm[1] + "-" + pad(dm[2]) + "-" + pad(dm[3]));
         }
       }
 
@@ -432,9 +429,8 @@
         alert("Not found. Try like: Day 2, 2, 08/08/2026");
         return;
       }
-
-      currentDay = dayNo;
       viewingAuto = false;
+      currentDay = dayNo;
       render();
     }
 
@@ -442,9 +438,11 @@
       if (e.key === "Enter") searchDay();
     });
 
-    // Load once, then refresh every 10 seconds for live counts
+    // ================= INIT =================
+    updateAutoDay();
+    render();
     fetchOrders();
-    setInterval(fetchOrders, 10000);
+    setInterval(fetchOrders, POLL_MS);
   </script>
 </body>
 </html>
