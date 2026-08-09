@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Sprinto - Print Dashboard</title>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     :root {
       --primary: #7C6FDB;
@@ -247,14 +246,13 @@
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
     const START_DATE = "2026-08-07"; // Day 1 starts here
-    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"];
+    const DAY_SWITCH_HOUR = 16;      // Orders placed at/after 4:00 PM belong to the NEXT day's table
+    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"]; // counts toward Printed & Sheets
+    const PAID_STATUSES = ["PAID", "PRINTING", "PICKED", "COMPLETED"]; // payment done -> counts as uploaded
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
     const POLL_MS = 10000;
 
     // ================= STATE =================
-    let supabase = null;
-    try { supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY); } catch (e) { supabase = null; }
-
     let records = {};   // dateKey -> counts
     let currentDay = 1;
     let viewingAuto = true;
@@ -272,11 +270,17 @@
       const d = parseDateKey(key);
       return Math.floor((d - s) / 86400000) + 1;
     }
+    function nextDateKey(key) {
+      const d = parseDateKey(key);
+      return formatDateKey(new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1));
+    }
 
     function updateAutoDay() {
       if (!viewingAuto) return;
       const n = new Date();
-      currentDay = Math.max(1, dayNoForDate(formatDateKey(n)));
+      let day = Math.max(1, dayNoForDate(formatDateKey(n)));
+      if (n.getHours() >= DAY_SWITCH_HOUR) day += 1; // after 4 PM, open the next day's table
+      currentDay = day;
     }
 
     // ================= ORDER PARSING =================
@@ -289,17 +293,12 @@
         slot: SLOT_BY_CODE[m[4]]
       };
     }
-    function slotFromHour(h) {
-      if (h >= 6 && h < 12) return "morning";
-      if (h >= 12 && h < 16) return "afternoon";
-      if (h >= 16 && h < 22) return "evening";
-      return null;
+    function slotFromCode(code) {
+      return SLOT_BY_CODE[code] || null;
     }
-    // Fallback for rows missing a valid order_id
-    function parseFallback(row) {
-      const d = row.created_at ? new Date(row.created_at) : null;
-      if (!d || isNaN(d)) return null;
-      return { dateKey: formatDateKey(d), slot: slotFromHour(d.getHours()) };
+    function deliveryToSlot(name) {
+      const m = { morning: "morning", afternoon: "afternoon", evening: "evening" };
+      return m[name] || null;
     }
 
     // Sheets per order = sum of (pages, duplex => ceil(pages/2)) * copies
@@ -325,14 +324,39 @@
     function buildRecords(rows) {
       const rec = {};
       rows.forEach((r) => {
-        const p = parseOrderId(r.order_id) || parseFallback(r);
-        if (!p || !p.slot) return;
-        if (!rec[p.dateKey]) rec[p.dateKey] = emptyCounts();
-        const day = rec[p.dateKey];
-        day.upload[p.slot]++;
+        // Only count orders whose payment is done (PAYMENT_PENDING / FAILED are skipped)
+        if (!PAID_STATUSES.includes(r.status)) return;
+
+        const parsed = parseOrderId(r.order_id);
+        const placed = r.created_at ? new Date(r.created_at) : null;
+
+        // DAY SWITCH RULE: the production day is the placement date, but an
+        // order placed at/after 4:00 PM (DAY_SWITCH_HOUR) is booked for the
+        // NEXT day's production and is counted in that day's table instead.
+        let dateKey;
+        if (placed && !isNaN(placed)) {
+          dateKey = formatDateKey(placed);
+          if (placed.getHours() >= DAY_SWITCH_HOUR) dateKey = nextDateKey(dateKey);
+        } else if (parsed) {
+          dateKey = parsed.dateKey;
+        } else {
+          return; // cannot place this row
+        }
+
+        // Slot column = the slot the student actually selected, never guessed from the time:
+        //   1) metadata.timingCode (M/A/E)   2) the M/A/E inside order_id   3) metadata.deliveryTime
+        const slot =
+          slotFromCode(r.metadata && r.metadata.timingCode) ||
+          (parsed && parsed.slot) ||
+          deliveryToSlot(r.metadata && r.metadata.deliveryTime);
+        if (!slot) return;
+
+        if (!rec[dateKey]) rec[dateKey] = emptyCounts();
+        const day = rec[dateKey];
+        day.upload[slot]++;
         if (PRINTED_STATUSES.includes(r.status)) {
-          day.print[p.slot]++;
-          day.sheet[p.slot] += orderSheets(r);
+          day.print[slot]++;
+          day.sheet[slot] += orderSheets(r);
         }
       });
       return rec;
@@ -340,18 +364,26 @@
 
     // ================= DATA FETCH =================
     async function fetchOrders() {
-      if (!supabase) { render(); return; }
       try {
-        const { data, error } = await supabase
-          .from("orders")
-          .select("order_id,status,files,created_at");
-        if (error) throw error;
+        const res = await fetch(
+          SUPABASE_URL + "/rest/v1/orders?select=order_id,status,files,created_at,metadata&order=created_at",
+          {
+            headers: {
+              "apikey": SUPABASE_ANON_KEY,
+              "Authorization": "Bearer " + SUPABASE_ANON_KEY,
+              "Accept": "application/json"
+            }
+          }
+        );
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
         records = buildRecords(data || []);
         const t = new Date();
         document.getElementById("updated-time").textContent =
           pad(t.getHours()) + ":" + pad(t.getMinutes()) + ":" + pad(t.getSeconds());
       } catch (err) {
         console.error("Supabase error:", err);
+        document.getElementById("updated-time").textContent = "error";
       }
       render();
     }
