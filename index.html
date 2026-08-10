@@ -83,8 +83,8 @@
       text-align: center;
       box-shadow: 0 2px 8px rgba(60, 40, 120, 0.08);
     }
-    .stat-card .value { font-size: 26px; font-weight: 600; color: var(--primary); }
-    .stat-card .label { font-size: 11px; color: var(--text-soft); margin-top: 4px; }
+    .stat-card .value { font-size: 22px; font-weight: 600; color: var(--primary); }
+    .stat-card .label { font-size: 10px; color: var(--text-soft); margin-top: 4px; line-height: 1.2; }
 
     .card {
       background: var(--white);
@@ -219,6 +219,7 @@
 
     <div class="stat-row">
       <div class="stat-card"><div class="value" id="stat-uploads">0</div><div class="label">Uploads</div></div>
+      <div class="stat-card"><div class="value" id="stat-pending">0</div><div class="label">Print Pending</div></div>
       <div class="stat-card"><div class="value" id="stat-printed">0</div><div class="label">Printed</div></div>
       <div class="stat-card"><div class="value" id="stat-sheets">0</div><div class="label">Sheets</div></div>
     </div>
@@ -342,7 +343,8 @@
       return {
         upload: { morning: 0, afternoon: 0, evening: 0 },
         print: { morning: 0, afternoon: 0, evening: 0 },
-        sheet: { morning: 0, afternoon: 0, evening: 0 }
+        sheet: { morning: 0, afternoon: 0, evening: 0 },
+        pending: { morning: 0, afternoon: 0, evening: 0 } // PAID / PRINTING / PICKED -> uploaded, not printed yet
       };
     }
 
@@ -379,9 +381,16 @@
         if (!rec[dateKey]) rec[dateKey] = emptyCounts();
         const day = rec[dateKey];
         day.upload[slot]++;
-        if (PRINTED_STATUSES.includes(r.status)) {
+        if (r.status === "COMPLETED") {
+          // Printed & done: moved out of Print Pending into Printed
           day.print[slot]++;
           day.sheet[slot] += orderSheets(r);
+        } else {
+          // PAID / PRINTING / PICKED: uploaded but not printed yet -> Print Pending
+          day.pending[slot]++;
+          if (PRINTED_STATUSES.includes(r.status)) {
+            day.sheet[slot] += orderSheets(r); // PRINTING / PICKED sheets already used
+          }
         }
       });
       return rec;
@@ -391,7 +400,7 @@
     async function fetchOrders() {
       try {
         const res = await fetch(
-          SUPABASE_URL + "/rest/v1/orders?select=order_id,status,files,created_at,metadata&order=created_at",
+          SUPABASE_URL + "/rest/v1/orders?select=order_id,status,files,created_at,metadata&status=in.(PAID,PRINTING,PICKED,COMPLETED)&order=created_at",
           {
             headers: {
               "apikey": SUPABASE_ANON_KEY,
@@ -425,10 +434,12 @@
       }
 
       const dayUploads = rec.upload.morning + rec.upload.afternoon + rec.upload.evening;
+      const dayPending = rec.pending.morning + rec.pending.afternoon + rec.pending.evening;
       const dayPrinted = rec.print.morning + rec.print.afternoon + rec.print.evening;
       const daySheets = rec.sheet.morning + rec.sheet.afternoon + rec.sheet.evening;
 
       document.getElementById("stat-uploads").textContent = dayUploads;
+      document.getElementById("stat-pending").textContent = dayPending;
       document.getElementById("stat-printed").textContent = dayPrinted;
       document.getElementById("stat-sheets").textContent = daySheets;
 
@@ -438,7 +449,7 @@
         pad(d.getDate()) + "/" + pad(d.getMonth() + 1) + "/" + d.getFullYear();
       document.getElementById("date-input").value = dateKey;
 
-      // Month Sheets = total of ALL days in the viewed calendar month.
+      // Month Sheets = total of ALL days in the viewed calendar month (official days >= START_DATE).
       // The total is always based on the month length: 30-day month -> 30 day total, 31-day month -> 31 day total.
       const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
       const y = d.getFullYear(), m = d.getMonth();
