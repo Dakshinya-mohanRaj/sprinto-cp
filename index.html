@@ -272,8 +272,8 @@
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
     const START_DATE = "2026-08-10"; // Day 1 - official counting starts here (10/08/2026)
-    const DAY_SWITCH_HOUR = 16;      // Orders placed at/after 4:00 PM belong to the NEXT day's table
-    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"]; // counts toward Printed & Sheets
+    const DAY_SWITCH_MIN = 17 * 60 + 30; // orders placed at/after 5:30 PM belong to the NEXT day's table
+    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"]; // sheets already used for these
     const PAID_STATUSES = ["PAID", "PRINTING", "PICKED", "COMPLETED"]; // payment done -> counts as uploaded
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
     const POLL_MS = 10000;
@@ -305,7 +305,7 @@
       if (!viewingAuto) return;
       const n = new Date();
       let day = dayNoForDate(formatDateKey(n));
-      if (n.getHours() >= DAY_SWITCH_HOUR) day += 1; // after 4 PM, open the next day's table
+      if (n.getHours() * 60 + n.getMinutes() >= DAY_SWITCH_MIN) day += 1; // after 5:30 PM, open the next day's table
       currentDay = Math.max(1, day);
     }
 
@@ -343,8 +343,7 @@
       return {
         upload: { morning: 0, afternoon: 0, evening: 0 },
         print: { morning: 0, afternoon: 0, evening: 0 },
-        sheet: { morning: 0, afternoon: 0, evening: 0 },
-        pending: { morning: 0, afternoon: 0, evening: 0 } // PAID / PRINTING / PICKED -> uploaded, not printed yet
+        sheet: { morning: 0, afternoon: 0, evening: 0 }
       };
     }
 
@@ -358,12 +357,12 @@
         const placed = r.created_at ? new Date(r.created_at) : null;
 
         // DAY SWITCH RULE: the production day is the placement date, but an
-        // order placed at/after 4:00 PM (DAY_SWITCH_HOUR) is booked for the
-        // NEXT day's production and is counted in that day's table instead.
+        // order placed at/after 5:30 PM is booked for the NEXT day's production
+        // and is counted in that day's table instead.
         let dateKey;
         if (placed && !isNaN(placed)) {
           dateKey = formatDateKey(placed);
-          if (placed.getHours() >= DAY_SWITCH_HOUR) dateKey = nextDateKey(dateKey);
+          if (placed.getHours() * 60 + placed.getMinutes() >= DAY_SWITCH_MIN) dateKey = nextDateKey(dateKey);
         } else if (parsed) {
           dateKey = parsed.dateKey;
         } else {
@@ -382,14 +381,13 @@
         const day = rec[dateKey];
         day.upload[slot]++;
         if (r.status === "COMPLETED") {
-          // Printed & done: moved out of Print Pending into Printed
+          // Printed & done
           day.print[slot]++;
           day.sheet[slot] += orderSheets(r);
         } else {
-          // PAID / PRINTING / PICKED: uploaded but not printed yet -> Print Pending
-          day.pending[slot]++;
+          // PRINTING / PICKED: not printed yet, but sheets already used
           if (PRINTED_STATUSES.includes(r.status)) {
-            day.sheet[slot] += orderSheets(r); // PRINTING / PICKED sheets already used
+            day.sheet[slot] += orderSheets(r);
           }
         }
       });
@@ -434,8 +432,8 @@
       }
 
       const dayUploads = rec.upload.morning + rec.upload.afternoon + rec.upload.evening;
-      const dayPending = rec.pending.morning + rec.pending.afternoon + rec.pending.evening;
       const dayPrinted = rec.print.morning + rec.print.afternoon + rec.print.evening;
+      const dayPending = dayUploads - dayPrinted;
       const daySheets = rec.sheet.morning + rec.sheet.afternoon + rec.sheet.evening;
 
       document.getElementById("stat-uploads").textContent = dayUploads;
