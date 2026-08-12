@@ -272,9 +272,11 @@
     const SUPABASE_URL = "https://fmjfokswraxldbuotgkk.supabase.co";
     const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZtamZva3N3cmF4bGRidW90Z2trIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQ4MjE2NjgsImV4cCI6MjEwMDM5NzY2OH0.n0t4bw4IGI-RVNZPg6KQnYTtkar2YV0Jgqn2GzM8ehI";
     const START_DATE = "2026-08-10"; // Day 1 - official counting starts here (10/08/2026)
-    const DAY_SWITCH_MIN = 17 * 60 + 30; // orders placed at/after 5:30 PM belong to the NEXT day's table
-    const PRINTED_STATUSES = ["PRINTING", "PICKED", "COMPLETED"]; // sheets already used for these
-    const PAID_STATUSES = ["PAID", "PRINTING", "PICKED", "COMPLETED"]; // payment done -> counts as uploaded
+    const DAY_SWITCH_MIN = 17 * 60 + 30; // dashboard display moves to the next day after 5:30 PM
+    const BLOCK_CUTOFF_MIN = 12 * 60;    // campus blocks: same day before 12:00 PM, next day after
+    const HOSTEL_CUTOFF_MIN = 17 * 60 + 30; // hostel: same day before 5:30 PM, next day after
+    const PRINTED_STATUSES = ["PRINTED", "COMPLETED"]; // printed orders -> count as Printed + Sheets
+    const PAID_STATUSES = ["PAID", "PRINTED", "COMPLETED"]; // paid orders -> count as Uploads
     const SLOT_BY_CODE = { M: "morning", A: "afternoon", E: "evening" };
     const POLL_MS = 10000;
 
@@ -339,6 +341,28 @@
       return total;
     }
 
+    // Sheets for an order: prefer the backend's authoritative totalSheets from
+    // metadata.pricing; fall back to the file-based calc only if missing.
+    function sheetsForOrder(order) {
+      const ts = (order.metadata && order.metadata.pricing && order.metadata.pricing.totalSheets);
+      const n = Number(ts);
+      if (ts !== null && ts !== undefined && !isNaN(n)) return n;
+      return orderSheets(order);
+    }
+
+    // Hostel orders use blockCode "X" / block name starting with "hostel".
+    function isHostelOrder(order) {
+      const m = order.metadata || {};
+      const code = String(m.blockCode || "").toUpperCase();
+      const block = String(m.block || "").toLowerCase();
+      return code === "X" || block.startsWith("hostel");
+    }
+
+    // Day-switch cutoff: campus blocks 12:00 PM, hostel 5:30 PM.
+    function orderCutoffMin(order) {
+      return isHostelOrder(order) ? HOSTEL_CUTOFF_MIN : BLOCK_CUTOFF_MIN;
+    }
+
     function emptyCounts() {
       return {
         upload: { morning: 0, afternoon: 0, evening: 0 },
@@ -357,12 +381,13 @@
         const placed = r.created_at ? new Date(r.created_at) : null;
 
         // DAY SWITCH RULE: the production day is the placement date, but an
-        // order placed at/after 5:30 PM is booked for the NEXT day's production
-        // and is counted in that day's table instead.
+        // order placed at/after the block's cutoff (campus blocks 12:00 PM,
+        // hostel 5:30 PM) is booked for the NEXT day's production instead.
         let dateKey;
         if (placed && !isNaN(placed)) {
           dateKey = formatDateKey(placed);
-          if (placed.getHours() * 60 + placed.getMinutes() >= DAY_SWITCH_MIN) dateKey = nextDateKey(dateKey);
+          const t = placed.getHours() * 60 + placed.getMinutes();
+          if (t >= orderCutoffMin(r)) dateKey = nextDateKey(dateKey);
         } else if (parsed) {
           dateKey = parsed.dateKey;
         } else {
@@ -380,15 +405,10 @@
         if (!rec[dateKey]) rec[dateKey] = emptyCounts();
         const day = rec[dateKey];
         day.upload[slot]++;
-        if (r.status === "COMPLETED") {
-          // Printed & done
+        if (PRINTED_STATUSES.includes(r.status)) {
+          // PRINTED / COMPLETED: counted as Printed and its sheets are done
           day.print[slot]++;
-          day.sheet[slot] += orderSheets(r);
-        } else {
-          // PRINTING / PICKED: not printed yet, but sheets already used
-          if (PRINTED_STATUSES.includes(r.status)) {
-            day.sheet[slot] += orderSheets(r);
-          }
+          day.sheet[slot] += sheetsForOrder(r);
         }
       });
       return rec;
@@ -398,7 +418,7 @@
     async function fetchOrders() {
       try {
         const res = await fetch(
-          SUPABASE_URL + "/rest/v1/orders?select=order_id,status,files,created_at,metadata&status=in.(PAID,PRINTING,PICKED,COMPLETED)&order=created_at",
+          SUPABASE_URL + "/rest/v1/orders?select=order_id,status,files,created_at,metadata&status=in.(PAID,PRINTED,COMPLETED)&order=created_at",
           {
             headers: {
               "apikey": SUPABASE_ANON_KEY,
